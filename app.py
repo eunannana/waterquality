@@ -275,7 +275,7 @@ def main():
         st.divider()
         st.subheader("📊 Visualizations")
         numerical_cols = df_cleaned.select_dtypes(include=[np.number]).columns.tolist()
-        tab1, tab2, tab3, tab4 = st.tabs(["Parameter Trend", "Scatter Plot", "Histogram", "Correlation Matrix"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Parameter Trend", "Histogram", "Scatter Plot", "Correlation Matrix"])
 
         with tab1:
             st.write("#### Parameter Trend Over Time")
