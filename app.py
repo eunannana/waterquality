@@ -262,6 +262,15 @@ def main():
             class_counts = df_classified["WATER_CLASS"].value_counts()
             st.write("**Count per Class:**")
             st.write(class_counts)
+            st.markdown("""
+<b>Water Classes and Uses based on National Water Quality Standard (NWQS) for Malaysia:</b><br>
+- <b>Class I</b>: Conservation of natural environment, suitable for very sensitive aquatic species and drinking water supply with minimal treatment.<br>
+- <b>Class IIA/IIB</b>: Suitable for body-contact recreational use, fisheries, and drinking water supply after conventional treatment.<br>
+- <b>Class III</b>: Suitable for irrigation, livestock watering, and drinking water supply after extended treatment.<br>
+- <b>Class IV</b>: Suitable for industrial water supply only after treatment.<br>
+- <b>Class V</b>: Very polluted, not suitable for any use.
+""", unsafe_allow_html=True)
+
 
         st.divider()
         st.subheader("📊 Visualizations")
@@ -294,17 +303,6 @@ def main():
                     st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
-            st.write("#### Scatter Plot")
-            if len(numerical_cols) >= 2:
-                x_axis = st.selectbox("Select X-Axis", numerical_cols, index=0)
-                y_axis = st.selectbox("Select Y-Axis", numerical_cols, index=1)
-                fig_scatter = px.scatter(df_cleaned, x=x_axis, y=y_axis,
-                                         title=f"Relationship between {x_axis} and {y_axis}")
-                fig_scatter.update_layout(xaxis_title=x_axis, yaxis_title=y_axis)
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            else:
-                st.warning("Need at least two numerical columns.")
-        with tab3:
             st.write("#### Histogram")
             if numerical_cols:
                 col_to_hist = st.selectbox("Select column to show histogram", numerical_cols)
@@ -343,6 +341,19 @@ def main():
                 df_cleaned.drop(["MonthPeriod", "Month-Name"], axis=1, inplace=True)
             else:
                 st.warning("No numerical columns available for histogram.")
+                
+        with tab3:
+            st.write("#### Scatter Plot")
+            if len(numerical_cols) >= 2:
+                x_axis = st.selectbox("Select X-Axis", numerical_cols, index=0)
+                y_axis = st.selectbox("Select Y-Axis", numerical_cols, index=1)
+                fig_scatter = px.scatter(df_cleaned, x=x_axis, y=y_axis,
+                                         title=f"Relationship between {x_axis} and {y_axis}")
+                fig_scatter.update_layout(xaxis_title=x_axis, yaxis_title=y_axis)
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            else:
+                st.warning("Need at least two numerical columns.")
+    
 
         with tab4:
             st.write("#### Correlation Matrix")
