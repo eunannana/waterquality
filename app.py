@@ -42,7 +42,7 @@ def local_ml_predict(features):
 # =====================================
 # 2. Deep Seek API Integration
 # =====================================
-DEEP_SEEK_API_KEY = "sk-xxx"
+DEEP_SEEK_API_KEY = st.secrets["DEEP_SEEK_API_KEY"]
 DEEP_SEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 def call_deepseek_api(user_prompt, data_summary=""):
