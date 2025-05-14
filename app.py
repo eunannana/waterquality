@@ -208,7 +208,8 @@ def detect_pollution_source(row):
 
 # ============= STREAMLIT APP =============
 def main():
-    st.title("AI-Driven Intelligent River Monitoring: Smart insights into river health through intelligent detection.")
+    st.title("AIRI-Artificial Intelligence for River Insight")
+    st.markdown("### Smart insights into river health through intelligent detection")
 
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
     if uploaded_file is not None:
