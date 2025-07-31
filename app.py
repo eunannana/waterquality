@@ -64,16 +64,48 @@ def local_ml_predict(features):
 DEEP_SEEK_API_KEY = "sk-9d758570ebfd4ae28221c2dde357b6d2"
 DEEP_SEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
+def generate_data_summary(df):
+    summary = []
+    numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if "WATER_CLASS" in df.columns:
+        class_counts = df["WATER_CLASS"].value_counts().to_dict()
+        summary.append(f"Water Class Distribution: {class_counts}")
+    
+    # Hitung trend 30 hari terakhir
+    df_30d = df.last("30D")
+    if not df_30d.empty:
+        trend_info = []
+        for col in numerical_cols:
+            trend_data = df_30d[col].resample("D").mean()
+            if trend_data.dropna().shape[0] >= 2:
+                slope = np.polyfit(range(len(trend_data)), trend_data.fillna(0), 1)[0]
+                direction = "increasing" if slope > 0 else "decreasing"
+                trend_info.append(f"{col}: {direction} (slope: {slope:.4f})")
+        summary.append("Parameter Trend (last 30 days):\n" + "\n".join(trend_info))
+    
+    return "\n\n".join(summary)
+
+
 def call_deepseek_api(user_prompt, data_summary=""):
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {DEEP_SEEK_API_KEY}"
     }
     system_message = (
-        "You are a helpful assistant specializing in practical river water improvement strategies. "
-        "Provide actionable insights rather than technical or statistical details."
+        "You are a helpful and practical assistant specialized in water quality improvement. "
+        "Your goal is to provide actionable and concise insights to help local governments, environmentalists, and citizens take meaningful actions.\n\n"
+        "Avoid overly technical language. Avoid repeating the prompt. "
+        "When relevant, refer to specific water classes (Class I to Class V) and related water usage categories."
     )
-    full_user = f"{user_prompt}\n\nData summary:\n{data_summary}\n\nFocus on real-world actions to enhance river water quality."
+    full_user = (
+        f"Based on the following question, give recommendations related to real-world river water management:\n"
+        f"{user_prompt}\n\n"
+        f"Data Summary (from recent observations):\n"
+        f"{data_summary}\n\n"
+        f"Available Parameters: pH, ORP, TDS, NH₃, DO, BOD, COD, Turbidity, Conductivity.\n"
+        f"Water Quality Classes (from ML model): Class I (best) to Class V (worst).\n"
+        f"Please structure your answer clearly, with bullet points if needed, and avoid generic statements."
+    )
     payload = {
         "model": "deepseek-chat",
         "messages": [
@@ -94,6 +126,7 @@ def call_deepseek_api(user_prompt, data_summary=""):
             return f"API Error {response.status_code}: {response.text}"
     except Exception as e:
         return f"Request failed: {e}"
+
 
 # ------------------------------------------------------------
 # 6. Column Normalization
@@ -170,8 +203,8 @@ faq_categories = {
     "📊 Trend and Behavior Insights": [
         "Summarize the recent 7-day trend for all parameters.",
         "Which parameters show an increasing trend over the past month?",
-        "Highlight any abnormal changes atau spikes in the last 24 hours.",
-        "Compare today’s readings dengan monthly average."
+        "Highlight any abnormal changes or spikes in the last 24 hours.",
+        "Compare today’s readings with monthly average."
     ],
     "⚠ Anomaly and Threshold Detection": [
         "List all parameters that exceeded threshold limits in the last 7 days.",
@@ -184,7 +217,7 @@ faq_categories = {
     ],
     "🏭 Source Attribution": [
         "Based on recent data patterns, what is the probable pollution source?",
-        "Are the parameter spikes consistent dengan industrial activity from oil palm mill or nursery?"
+        "Are the parameter spikes consistent with industrial activity from oil palm mill or nursery?"
     ],
     "📈 Performance and Quality Summary": [
         "Provide a summary of water quality condition for this week.",
@@ -249,39 +282,72 @@ if uploaded_file is not None:
                 "Scatter Plot",
                 "Correlation Matrix"
             ])
+        with tab1:
+            st.write("#### Parameter Trend Over Time")
 
-            with tab1:
-                st.write("#### Parameter Trend Over Time")
-                trend_options = ["All Parameters"] + numerical_cols
-                selected_param = st.selectbox("Select Parameter to Show", trend_options)
-                agg_choice = st.selectbox("Aggregation", ["All time", "Daily", "Weekly", "Monthly"])
-                df_for_trend = df_cleaned.copy()
-                if agg_choice == "Daily":
-                    df_for_trend = df_cleaned.resample('D').mean()
-                elif agg_choice == "Weekly":
-                    df_for_trend = df_cleaned.resample('W').mean()
-                elif agg_choice == "Monthly":
-                    df_for_trend = df_cleaned.resample('M').mean()
+            trend_options = ["All Parameters"] + numerical_cols
+            selected_param = st.selectbox("Select Parameter to Show", trend_options)
+            agg_choice = st.selectbox("Aggregation", ["All time", "Daily", "Weekly", "Monthly"])
 
-                if selected_param != "All Parameters":
+            df_for_trend = df_cleaned.copy()
+
+            # Pastikan indeks waktu sudah benar
+            if not isinstance(df_for_trend.index, pd.DatetimeIndex):
+                try:
+                    df_for_trend.index = pd.to_datetime(df_for_trend.index)
+                except:
+                    st.warning("Index is not datetime. Cannot plot trend.")
+                    st.stop()
+
+            # Resampling berdasarkan pilihan
+            if agg_choice == "Daily":
+                df_for_trend = df_for_trend.resample('D').mean()
+            elif agg_choice == "Weekly":
+                df_for_trend = df_for_trend.resample('W').mean()
+            elif agg_choice == "Monthly":
+                df_for_trend = df_for_trend.resample('M').mean()
+
+            df_for_trend = df_for_trend.sort_index()  # Sort waktu
+
+            if selected_param != "All Parameters":
+                if selected_param in df_for_trend.columns and not df_for_trend[selected_param].dropna().empty:
                     fig_single = px.line(
                         df_for_trend,
                         x=df_for_trend.index,
                         y=selected_param,
                         title=f"{agg_choice} Trend - {selected_param}"
                     )
-                    fig_single.update_layout(xaxis_title="Time", yaxis_title=selected_param)
+                    fig_single.update_layout(
+                        xaxis_title="Time",
+                        yaxis_title=selected_param,
+                        height=400,
+                        margin=dict(l=40, r=40, t=40, b=40),
+                        xaxis=dict(rangeslider=dict(visible=True))
+                    )
                     st.plotly_chart(fig_single, use_container_width=True)
                 else:
-                    for col in numerical_cols:
+                    st.warning(f"No valid data found for {selected_param}.")
+            else:
+                valid_count = 0
+                for col in numerical_cols:
+                    if col in df_for_trend.columns and not df_for_trend[col].dropna().empty:
                         fig = px.line(
                             df_for_trend,
                             x=df_for_trend.index,
                             y=col,
                             title=f"{agg_choice} Trend - {col}"
                         )
-                        fig.update_layout(xaxis_title="Time", yaxis_title=col)
+                        fig.update_layout(
+                            xaxis_title="Time",
+                            yaxis_title=col,
+                            height=400,
+                            margin=dict(l=40, r=40, t=40, b=40),
+                            xaxis=dict(rangeslider=dict(visible=True))
+                        )
                         st.plotly_chart(fig, use_container_width=True)
+                        valid_count += 1
+                if valid_count == 0:
+                    st.warning("No valid numerical data available for trend visualization.")
 
             with tab2:
                 st.write("#### Histogram")
@@ -376,8 +442,8 @@ if uploaded_file is not None:
                     ),
                     axis=1
                 )
-                class_counts_str = f"Class counts: {df_for_summary['WATER_CLASS'].value_counts().to_dict()}"
-                answer = call_deepseek_api(chosen_prompt, data_summary=class_counts_str)
+                data_summary = generate_data_summary(df_for_summary)
+                answer = call_deepseek_api(chosen_prompt, data_summary=data_summary)
                 if answer.startswith("API Error") or answer.startswith("Request failed"):
                     st.error(answer)
                 else:
